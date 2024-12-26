@@ -1,0 +1,95 @@
+โค้ดการทำงานของเครื่องให้อาหารแมวอัตโนมัติ
+
+#include <Wire.h>
+#include <RTClib.h>
+#include <HX711.h>
+#include <Servo.h>
+
+// กำหนดขาเชื่อมต่อ
+RTC_DS3231 rtc;
+HX711 scale;
+Servo feederMotor;
+
+// กำหนดพอร์ตที่ใช้
+#define LOADCELL_DOUT_PIN 3
+#define LOADCELL_SCK_PIN 2
+#define SERVO_PIN 9
+
+// ปริมาณอาหารที่ต้องการ (144 กรัม)
+float targetWeight = 144.0;  // กรัม
+float foodWeight = 0.0;
+
+// ตัวแปรเวลา
+int feedTimeMorning = 7;  // 07:00 น.
+int feedTimeEvening = 16; // 16:00 น.
+
+// ฟังก์ชั่นเริ่มต้น
+void setup() {
+  Serial.begin(9600);
+
+  // เชื่อมต่อ RTC
+  if (!rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+
+  // เชื่อมต่อเซ็นเซอร์น้ำหนัก
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+  scale.set_scale(2280.f); // ปรับเทียบการชั่งน้ำหนัก
+
+  // เริ่มต้นมอเตอร์
+  feederMotor.attach(SERVO_PIN);
+
+  // ตรวจสอบการเริ่มต้น
+  Serial.println("Starting Automatic Cat Feeder...");
+}
+
+void loop() {
+  // อ่านเวลา
+  DateTime now = rtc.now();
+  
+  // แสดงเวลา
+  Serial.print(now.hour(), DEC);
+  Serial.print(':');
+  if (now.minute() < 10) {
+    Serial.print('0');
+  }
+  Serial.print(now.minute(), DEC);
+  Serial.print(':');
+  if (now.second() < 10) {
+    Serial.print('0');
+  }
+  Serial.println(now.second(), DEC);
+
+  // เช็คเวลา 07:00 และ 16:00
+  if ((now.hour() == feedTimeMorning || now.hour() == feedTimeEvening) && now.minute() == 0 && now.second() == 0) {
+    feedCat();
+  }
+
+  delay(1000); // รอ 1 วินาที
+}
+
+// ฟังก์ชั่นให้อาหารแมว
+void feedCat() {
+  foodWeight = 0;  // เริ่มต้นน้ำหนักอาหาร
+
+  // หมุนมอเตอร์ให้ปล่อยอาหาร
+  feederMotor.write(90);  // หมุนมอเตอร์ให้ปล่อยอาหาร (ปรับค่าให้เหมาะสม)
+  
+  // วนลูปเพื่อปล่อยอาหารจนกว่าจะได้ 144 กรัม
+  while (foodWeight < targetWeight) {
+    foodWeight = scale.get_units(10);  // อ่านน้ำหนักอาหารที่ร่วงลงมา
+    Serial.print("Current weight: ");
+    Serial.println(foodWeight);
+    delay(100); // รอเวลาสักครู่ก่อนอ่านใหม่
+  }
+  
+  // เมื่อได้ 144 กรัมแล้วหยุดมอเตอร์
+  feederMotor.write(0);  // หยุดมอเตอร์
+  Serial.println("Feeding complete!");
+  
+  // รอให้ถึงเวลาให้อาหารครั้งถัดไป
+  delay(60000); // รอ 1 นาที (เพื่อไม่ให้ฟังก์ชั่นนี้ทำงานหลายครั้งในเวลาเดียวกัน)
+}
+
+
