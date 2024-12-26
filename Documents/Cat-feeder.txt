@@ -1,5 +1,3 @@
-โค้ดการทำงานของเครื่องให้อาหารแมวอัตโนมัติ
-
 #include <Wire.h>
 #include <RTClib.h>
 #include <HX711.h>
